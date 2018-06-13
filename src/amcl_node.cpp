@@ -24,9 +24,11 @@
 #include <vector>
 #include <map>
 #include <cmath>
-
+#include <thread>
 #include <boost/bind.hpp>
 #include <boost/thread/mutex.hpp>
+#include <std_msgs/Float32.h>
+
 
 // Signal handling
 #include <signal.h>
@@ -136,6 +138,7 @@ class AmclNode
 
   private:
     tf::TransformBroadcaster* tfb_;
+    std::thread *computeCurrentScoreThread;  
 
     // Use a child class to get access to tf2::Buffer class inside of tf_
     struct TransformListenerWrapper : public tf::TransformListener
@@ -174,7 +177,7 @@ class AmclNode
     map_t* convertMap( const nav_msgs::OccupancyGrid& map_msg );
     void updatePoseFromServer();
     void applyInitialPose();
-
+    void computeScoreThread();  
     double getYaw(tf::Pose& t);
 
     //parameter for what odom to use
@@ -246,6 +249,7 @@ class AmclNode
     ros::NodeHandle private_nh_;
     ros::Publisher pose_pub_;
     ros::Publisher particlecloud_pub_;
+    ros::Publisher match_score_pub;
     ros::ServiceServer global_loc_srv_;
     ros::ServiceServer nomotion_update_srv_; //to let amcl update samples without requiring motion
     ros::ServiceServer set_map_srv_;
@@ -434,6 +438,7 @@ AmclNode::AmclNode() :
 
   pose_pub_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("amcl_pose", 2, true);
   particlecloud_pub_ = nh_.advertise<geometry_msgs::PoseArray>("particlecloud", 2, true);
+  match_score_pub = nh_.advertise<std_msgs::Float32>("amcl_match_score", 2, true);
   global_loc_srv_ = nh_.advertiseService("global_localization", 
 					 &AmclNode::globalLocalizationCallback,
                                          this);
@@ -449,7 +454,8 @@ AmclNode::AmclNode() :
   laser_scan_filter_->registerCallback(boost::bind(&AmclNode::laserReceived,
                                                    this, _1));
   initial_pose_sub_ = nh_.subscribe("initialpose", 2, &AmclNode::initialPoseReceived, this);
-
+  
+  computeCurrentScoreThread = new std::thread(&AmclNode::computeScoreThread,this); 
   if(use_map_topic_) {
     map_sub_ = nh_.subscribe("map", 1, &AmclNode::mapReceived, this);
     ROS_INFO("Subscribed to map topic.");
@@ -1547,3 +1553,25 @@ AmclNode::applyInitialPose()
     initial_pose_hyp_ = NULL;
   }
 }
+
+  
+//=================compute the matching score by cabin============================  
+void AmclNode::computeScoreThread(){  
+    double sum_score;  
+    double sub_score;  
+    int count;
+    std_msgs::Float32 score;
+    while(ros::ok()){  
+        sub_score = get_match_score();  
+        sum_score += sub_score;  
+        count++;  
+        sleep(0.2);  
+        if(count>5){  
+            //std::cout<<"========"<<"pf filter score:"<<sum_score<<"======"<<&std::endl;  
+	    score.data = sum_score;
+	    match_score_pub.publish(score);
+            count =0;  
+            sum_score = 0.0;  
+            }  
+        }  
+}  

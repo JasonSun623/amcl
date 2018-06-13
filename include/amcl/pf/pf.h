@@ -190,6 +190,8 @@ int pf_update_converged(pf_t *pf);
 //sets the current set and pf converged values to zero
 void pf_init_converged(pf_t *pf);
 
+double get_match_score();
+
 #ifdef __cplusplus
 }
 #endif

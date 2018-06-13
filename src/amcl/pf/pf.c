@@ -39,7 +39,7 @@
 // with samples in them.
 static int pf_resample_limit(pf_t *pf, int k);
 
-
+double match_score_;  
 
 // Create a new filter
 pf_t *pf_alloc(int min_samples, int max_samples,
@@ -257,6 +257,9 @@ void pf_update_action(pf_t *pf, pf_action_model_fn_t action_fn, void *action_dat
 }
 
 
+
+
+
 #include <float.h>
 // Update the filter with some new sensor observation
 //更新观测模型，自适应蒙特卡洛滤波 主要长期似然估计和短期似然估计
@@ -271,6 +274,8 @@ void pf_update_sensor(pf_t *pf, pf_sensor_model_fn_t sensor_fn, void *sensor_dat
 
   // Compute the sample weights 计算采样权重
   total = (*sensor_fn) (sensor_data, set);
+  
+  match_score_ = total;   
   
   if (total > 0.0)
   {
@@ -664,4 +669,9 @@ int pf_get_cluster_stats(pf_t *pf, int clabel, double *weight,
   return 1;
 }
 
+
+// Delive the score by cabin  
+double get_match_score(){  
+    return match_score_;  
+}  
 
